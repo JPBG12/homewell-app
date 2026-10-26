@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import {
-  STATUSES, TYPES, BILLING, statusColor, sameDay, fmtT, fmtD, fmtLong, startOfWeek, mapLinks, routeLinks, clientEmail, copyText,
+  STATUSES, TYPES, BILLING, statusColor, sameDay, fmtT, fmtD, fmtLong, startOfWeek, mapLinks, routeLinks, clientEmail, copyText, displayId,
 } from "@/lib/constants";
 import AddressInput from "./AddressInput";
 import ChangePassword from "./ChangePassword";
+import PushToggle from "./PushToggle";
 
 const RouteMap = dynamic(() => import("./RouteMap"), { ssr: false, loading: () => <div className="lmap" /> });
 const supabase = createClient();
@@ -35,15 +36,16 @@ const Close = ({ onClose }) => <button className="x" onClick={onClose} aria-labe
 const StatusPill = ({ s }) => <span className="pill" style={{ "--c": `var(${statusColor(s)})` }}>{s}</span>;
 
 function Card({ i, name, showAssessor, onOpen }) {
+  const noAddr = !i.address;
   const d = new Date(i.scheduled_at), [t, ap] = fmtT(d).split(" ");
   return (
     <button className="card" onClick={() => onOpen(i.id)}>
       <div className="time"><b>{t}</b>{ap}</div>
       <div className="cbody">
         <div className="ctop"><span className="cname">{i.client_name}</span><StatusPill s={i.status} /></div>
-        <div className="addr"><Pin /><span>{i.address}</span></div>
+        <div className="addr"><Pin /><span>{noAddr ? "No address on file" : i.address}</span></div>
         <div className="meta">
-          <span className="chip">{i.type}</span>
+          {i.type && <span className="chip">{i.type}</span>}
           {showAssessor && <span className="chip">{name}</span>}
           {!sameDay(d, new Date()) && <span className="chip">{fmtD(d)}</span>}
         </div>
@@ -94,10 +96,17 @@ export default function App({ userId }) {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
         (p) => { loadNotis(); toast(p.new.message); })
       .subscribe();
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     const onFocus = () => { loadItems(); loadNotis(); };
     addEventListener("focus", onFocus);
     return () => { supabase.removeChannel(ch); removeEventListener("focus", onFocus); };
   }, [userId, loadTeam, loadRefs, loadItems, loadNotis, toast]);
+
+  // Opening the app from a phone notification: /?open=<job id>
+  useEffect(() => {
+    const id = Number(new URLSearchParams(location.search).get("open"));
+    if (id && items.some((x) => x.id === id)) { setSheet({ kind: "detail", id }); history.replaceState(null, "", "/"); }
+  }, [items]);
 
   const byId = useMemo(() => Object.fromEntries(team.map((p) => [p.id, p])), [team]);
   const nameOf = (id) => byId[id]?.name || "Unassigned";
@@ -158,7 +167,7 @@ export default function App({ userId }) {
       {sheet?.kind === "form" && <InspectionForm i={items.find((x) => x.id === sheet.id)} items={items} assessors={assessors} refs={refs}
         apptHours={apptHours} nameOf={nameOf} onClose={close} toast={toast} reload={loadItems} />}
       {sheet?.kind === "search" && <Search {...shared} onClose={close} onPick={open} userId={userId} />}
-      {sheet?.kind === "notis" && <Notifications notis={notis} onClose={close} reload={loadNotis} userId={userId}
+      {sheet?.kind === "notis" && <Notifications notis={notis} onClose={close} reload={loadNotis} userId={userId} toast={toast}
         onOpen={(id) => items.some((x) => x.id === id) ? open(id) : close()} />}
       {sheet?.kind === "account" && <Account me={me} onClose={close} toast={toast} />}
 
@@ -170,7 +179,7 @@ export default function App({ userId }) {
 /* ───────── views ───────── */
 function List({ arr, nameOf, isAdmin, open, empty = "No inspections here." }) {
   if (!arr.length) return <div className="empty">{empty}</div>;
-  return <div className="list">{arr.map((i) => <Card key={i.id} i={i} name={nameOf(i.assessor_id)} showAssessor={isAdmin} onOpen={open} />)}</div>;
+  return <div className="list">{arr.map((i) => <Card key={i.id} i={i} name={i.assessor_id ? nameOf(i.assessor_id) : (i.legacy_assessor || "Unassigned")} showAssessor={isAdmin} onOpen={open} />)}</div>;
 }
 
 function Today({ mine, nameOf, isAdmin, open, me }) {
@@ -196,7 +205,7 @@ function Today({ mine, nameOf, isAdmin, open, me }) {
 function AllList({ mine, nameOf, isAdmin, open, assessors }) {
   const [q, setQ] = useState(""), [status, setStatus] = useState("All"), [who, setWho] = useState("All");
   const arr = mine.filter((i) => (status === "All" || i.status === status) && (who === "All" || i.assessor_id === who) &&
-    [i.client_name, i.address, i.code].join(" ").toLowerCase().includes(q.toLowerCase())).slice().reverse();
+    [i.client_name, i.address, i.code, i.legacy_id].join(" ").toLowerCase().includes(q.toLowerCase())).slice().reverse();
   return (
     <>
       <h1>Inspections</h1>
@@ -214,6 +223,7 @@ function AllList({ mine, nameOf, isAdmin, open, assessors }) {
         {["All", ...STATUSES.map((s) => s.k)].map((s) => <button key={s} className="fchip" aria-pressed={status === s} onClick={() => setStatus(s)}>{s}</button>)}
       </div>
       <List arr={arr} nameOf={nameOf} isAdmin={isAdmin} open={open} />
+      <p className="locknote">Older jobs: use the search button at the top.</p>
     </>
   );
 }
@@ -296,9 +306,10 @@ function Route({ mine, isAdmin, open, me, assessors }) {
 
 /* ───────── inspection detail ───────── */
 function Detail({ i, nameOf, isAdmin, onClose, onEdit, toast, reload }) {
-  const d = new Date(i.scheduled_at), L = mapLinks(i.address), addrRef = useRef();
+  const d = new Date(i.scheduled_at), L = i.address ? mapLinks(i.address) : null, addrRef = useRef();
+  const who = i.assessor_id ? nameOf(i.assessor_id) : (i.legacy_assessor || "Unassigned");
   const [copied, setCopied] = useState(false), [confirmDel, setConfirmDel] = useState(false);
-  const email = clientEmail(i, nameOf(i.assessor_id));
+  const email = clientEmail(i);
   const selectEl = (el) => { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
 
   async function setStatus(s) {
@@ -314,38 +325,38 @@ function Detail({ i, nameOf, isAdmin, onClose, onEdit, toast, reload }) {
   async function del() {
     const { error } = await supabase.from("inspections").delete().eq("id", i.id);
     if (error) return toast(error.message);
-    toast(`Deleted ${i.code}`); onClose(); reload();
+    toast(`Deleted ${displayId(i)}`); onClose(); reload();
   }
 
   return (
     <Sheet onClose={onClose}>
       <div className="shead">
-        <div><small className="time">{i.code}</small><h1>{i.client_name}</h1><p className="sub">{fmtD(d)} · {fmtT(d)}</p></div>
+        <div><small className="time">ID {displayId(i)}</small><h1>{i.client_name}</h1><p className="sub">{fmtD(d)} · {fmtT(d)}</p></div>
         <Close onClose={onClose} />
       </div>
       <div className="panel">
         <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap", alignItems: "flex-start" }}>
-          <div className="addr" style={{ color: "var(--fg)", fontWeight: 600, userSelect: "text", WebkitUserSelect: "text" }}><Pin /><span ref={addrRef}>{i.address}</span></div>
-          <button className="btn ghost sm" style={{ flex: "none" }} onClick={copyAddr}>{copied ? "Copied" : "Copy"}</button>
+          <div className="addr" style={{ color: "var(--fg)", fontWeight: 600, userSelect: "text", WebkitUserSelect: "text" }}><Pin /><span ref={addrRef}>{i.address || "No address on file"}</span></div>
+          {L && <button className="btn ghost sm" style={{ flex: "none" }} onClick={copyAddr}>{copied ? "Copied" : "Copy"}</button>}
         </div>
-        <div className="navbtns">
+        {L && <div className="navbtns">
           <a href={L.google} target="_blank" rel="noopener">Google Maps</a>
           <a href={L.apple} target="_blank" rel="noopener">Apple Maps</a>
           <a href={L.waze} target="_blank" rel="noopener">Waze</a>
-        </div>
+        </div>}
       </div>
       <div className="panel">
         <b>Status</b>
         <div className="statusgrid">
           {STATUSES.map((s) => <button key={s.k} className="sbtn" style={{ "--c": `var(${s.c})` }} aria-pressed={i.status === s.k} onClick={() => setStatus(s.k)}>{s.k}</button>)}
         </div>
-        <p className="locknote">Last updated by {i.updated_by ? nameOf(i.updated_by) : nameOf(i.created_by)} · {new Date(i.updated_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+        <p className="locknote">Last updated{i.updated_by || i.created_by ? ` by ${nameOf(i.updated_by || i.created_by)}` : ""} · {new Date(i.updated_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
       </div>
       <div className="panel kv">
-        <div><small>Type</small><span>{i.type}</span></div>
-        <div><small>Assessor</small><span>{nameOf(i.assessor_id)}</span></div>
-        <div><small>Referred by</small><span>{i.referral_source}</span></div>
-        <div><small>Billing</small><span>{i.billing}</span></div>
+        <div><small>Type</small><span>{i.type || "—"}</span></div>
+        <div><small>Assessor</small><span>{who}</span></div>
+        <div><small>Referred by</small><span>{i.referral_source || "—"}</span></div>
+        <div><small>Billing</small><span>{i.billing || "—"}</span></div>
         <div><small>Report sent</small><span>{i.report_sent ? "Yes" : "No"}</span></div>
         <div><small>Invoice memo</small><span>{i.invoice_memo}</span></div>
         {i.notes && <div style={{ gridColumn: "1/-1" }}><small>Notes</small><span style={{ whiteSpace: "pre-wrap" }}>{i.notes}</span></div>}
@@ -388,10 +399,10 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
   const when = f.date && f.time ? new Date(`${f.date}T${f.time}`) : null;
   const clashes = when && f.assessor_id
     ? items.filter((x) => x.id !== i?.id && x.assessor_id === f.assessor_id && Math.abs(new Date(x.scheduled_at) - when) < apptHours * 36e5) : [];
-  const past = useMemo(() => { const seen = new Set(); return items.filter((x) => !seen.has(x.address) && seen.add(x.address)); }, [items]);
+  const past = useMemo(() => { const seen = new Set(); return items.filter((x) => x.address && !seen.has(x.address) && seen.add(x.address)); }, [items]);
   // referral list keeps an old value visible when editing even if it was removed from Settings
   const refNames = [...new Set([...refs.map((r) => r.name), ...(i?.referral_source ? [i.referral_source] : [])])];
-  const assessorOpts = i && !assessors.some((a) => a.id === i.assessor_id) ? [...assessors, { id: i.assessor_id, name: nameOf(i.assessor_id) }] : assessors;
+  const assessorOpts = i?.assessor_id && !assessors.some((a) => a.id === i.assessor_id) ? [...assessors, { id: i.assessor_id, name: nameOf(i.assessor_id) }] : assessors;
 
   async function save(e) {
     e.preventDefault();
@@ -434,7 +445,7 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
             <textarea id="fno" rows={2} value={f.notes} onChange={set("notes")} /></div>
           {i && <label className="check wide"><input type="checkbox" checked={f.report_sent} onChange={set("report_sent")} /> Report sent to client</label>}
         </div>
-        <p className="memo">Invoice memo (created automatically): <b>{f.client_name.trim() || "Client name"} · {i ? i.code : "HW-####"}</b></p>
+        <p className="memo">Invoice memo (created automatically): <b>{f.client_name.trim() || "Client name"} {f.address.trim() || "Address"} ID: {i ? displayId(i) : "HW-####"}</b></p>
         {clashes.length > 0 && (
           <div className="warn"><b>Heads up:</b> {nameOf(f.assessor_id)} already has {clashes.map((x) => `${x.client_name} at ${fmtT(new Date(x.scheduled_at))}`).join(" and ")} on {fmtD(new Date(clashes[0].scheduled_at))}. Appointments are set to {apptHours} hour{apptHours === 1 ? "" : "s"}, so these overlap.</div>
         )}
@@ -458,7 +469,7 @@ function Search({ nameOf, isAdmin, onClose, onPick }) {
     timer.current = setTimeout(async () => {
       const like = `%${t}%`;
       const { data } = await supabase.from("inspections").select("*")
-        .or(`client_name.ilike.${like},address.ilike.${like},code.ilike.${like},referral_source.ilike.${like},type.ilike.${like},status.ilike.${like}`)
+        .or(`client_name.ilike.${like},address.ilike.${like},code.ilike.${like},referral_source.ilike.${like},type.ilike.${like},status.ilike.${like},legacy_id.ilike.${like}`)
         .order("scheduled_at", { ascending: false }).limit(40);
       setHits(data || []);
     }, 250);
@@ -478,13 +489,14 @@ function Search({ nameOf, isAdmin, onClose, onPick }) {
 }
 
 /* ───────── notifications ───────── */
-function Notifications({ notis, onClose, reload, onOpen, userId }) {
+function Notifications({ notis, onClose, reload, onOpen, userId, toast }) {
   useEffect(() => {
     if (notis.some((n) => !n.read)) supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false).then(reload);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Sheet onClose={onClose}>
       <div className="shead"><h1>Notifications</h1><Close onClose={onClose} /></div>
+      <PushToggle supabase={supabase} userId={userId} toast={toast} />
       <div className="panel">
         {notis.length ? notis.map((n) => (
           <button key={n.id} className={`noti ${n.read ? "" : "unread"}`} style={{ background: "none", border: 0, width: "100%", textAlign: "left", color: "inherit" }}

@@ -2,3 +2,4 @@ node_modules
 .next
 .env*.local
 .vercel
+supabase/004_import_sheet.sql
