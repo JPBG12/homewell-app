@@ -196,3 +196,9 @@ img{max-width:100%}
 .loading{display:grid;place-items:center;min-height:60vh;color:var(--muted)}
 .danger{background:color-mix(in srgb,var(--s-hold) 14%,var(--surface));color:var(--s-hold)}
 .spacer{flex:1}
+/* iPhone: date/time fields have a built-in minimum width that pushed the page sideways */
+html,body{overflow-x:clip;max-width:100%}
+.fgrid>*,.f,.row>*{min-width:0}
+form input,form select,form textarea{min-width:0;max-width:100%}
+input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;display:block;min-height:46px;text-align:left}
+input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left}
