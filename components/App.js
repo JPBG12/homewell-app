@@ -435,8 +435,8 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
           <AddressInput value={f.address} pastAddresses={past}
             onChange={(t) => setF((x) => ({ ...x, address: t, lat: null, lng: null, place_id: null }))}
             onPick={(p) => setF((x) => ({ ...x, ...p }))} />
-          <div className="f"><label htmlFor="fd">Date</label><input id="fd" type="date" required value={f.date} onChange={set("date")} /></div>
-          <div className="f"><label htmlFor="ft">Time</label><input id="ft" type="time" required value={f.time} onChange={set("time")} /></div>
+          <div className="f"><label htmlFor="fd">Date</label><div className="dt"><input id="fd" type="date" required value={f.date} onChange={set("date")} /></div></div>
+          <div className="f"><label htmlFor="ft">Time</label><div className="dt"><input id="ft" type="time" required value={f.time} onChange={set("time")} /></div></div>
           <div className="f"><label htmlFor="fty">Type</label>{Sel({ id: "fty", k: "type", opts: TYPES })}</div>
           <div className="f"><label htmlFor="fas">Assessor</label>{Sel({ id: "fas", k: "assessor_id", opts: assessorOpts })}</div>
           <div className="f"><label htmlFor="fr">Referred by</label>{Sel({ id: "fr", k: "referral_source", opts: refNames })}</div>
