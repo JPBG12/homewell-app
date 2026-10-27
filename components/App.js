@@ -11,7 +11,6 @@ import PushToggle from "./PushToggle";
 
 const RouteMap = dynamic(() => import("./RouteMap"), { ssr: false, loading: () => <div className="lmap" /> });
 const supabase = createClient();
-const TO_BILL = ["Inspected", "Ready to Bill"]; // what the "To bill" box counts
 const PAGE = 100; // cards shown at a time in the Inspections list
 
 /* ───────── icons ───────── */
@@ -158,7 +157,7 @@ export default function App({ userId }) {
       </nav>
 
       <main className="wrap">
-        {view === "today" && <Today {...shared} me={me} showToBill={() => { setListStatus("To bill"); setView("all"); scrollTo(0, 0); }} />}
+        {view === "today" && <Today {...shared} me={me} showStatus={(st) => { setListStatus(st); setView("all"); scrollTo(0, 0); }} />}
         {view === "all" && <AllList key={listStatus} {...shared} assessors={assessors} initialStatus={listStatus} />}
         {view === "cal" && <Calendar {...shared} />}
         {view === "route" && <Route {...shared} me={me} assessors={assessors} />}
@@ -191,19 +190,20 @@ function List({ arr, nameOf, isAdmin, open, empty = "No inspections here." }) {
   return <div className="list">{arr.map((i) => <Card key={i.id} i={i} name={i.assessor_id ? nameOf(i.assessor_id) : (i.legacy_assessor || "Unassigned")} showAssessor={isAdmin} onOpen={open} />)}</div>;
 }
 
-function Today({ mine, nameOf, isAdmin, open, me, showToBill }) {
+function Today({ mine, nameOf, isAdmin, open, me, showStatus }) {
   const now = new Date();
   const todays = mine.filter((i) => sameDay(new Date(i.scheduled_at), now));
-  const pending = mine.filter((i) => TO_BILL.includes(i.status)).length;
+  const count = (st) => mine.filter((i) => i.status === st).length;
   const hr = now.getHours(), greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   return (
     <>
       <h1>{greet}, {me.name}</h1>
       <p className="sub">{fmtLong(now)}</p>
-      <div className="stats">
+      <div className={isAdmin ? "stats four" : "stats"}>
         <div className="stat"><b>{todays.length}</b><span>Today</span></div>
         <div className="stat"><b>{todays.filter((i) => i.status === "Scheduled").length}</b><span>Still to go</span></div>
-        <button className="stat tap" onClick={showToBill} aria-label="Show jobs to bill"><b>{pending}</b><span>{isAdmin ? "To bill" : "Awaiting report"} ›</span></button>
+        <button className="stat tap" onClick={() => showStatus("Inspected")} aria-label="Show jobs with report pending"><b>{count("Inspected")}</b><span>Report pending ›</span></button>
+        {isAdmin && <button className="stat tap" onClick={() => showStatus("Ready to Bill")} aria-label="Show jobs ready to bill"><b>{count("Ready to Bill")}</b><span>To bill ›</span></button>}
       </div>
       <h2>{isAdmin ? "Everyone's appointments today" : "Your appointments today"}</h2>
       <List arr={todays} nameOf={nameOf} isAdmin={isAdmin} open={open} empty="Nothing scheduled today." />
@@ -215,8 +215,7 @@ function AllList({ mine, nameOf, isAdmin, open, assessors, initialStatus = "All"
   const [q, setQ] = useState(""), [status, setStatus] = useState(initialStatus), [who, setWho] = useState("All");
   const [shown, setShown] = useState(PAGE);
   useEffect(() => setShown(PAGE), [q, status, who]);
-  const toBill = isAdmin ? "To bill" : "Awaiting report";
-  const arr = mine.filter((i) => (status === "All" || (status === "To bill" ? TO_BILL.includes(i.status) : i.status === status)) &&
+  const arr = mine.filter((i) => (status === "All" || i.status === status) &&
     (who === "All" || i.assessor_id === who) &&
     [i.client_name, i.address, i.code, i.legacy_id].join(" ").toLowerCase().includes(q.toLowerCase())).slice().reverse();
   return (
@@ -233,7 +232,7 @@ function AllList({ mine, nameOf, isAdmin, open, assessors, initialStatus = "All"
         )}
       </div>
       <div className="chips">
-        {["All", "To bill", ...STATUSES.map((s) => s.k)].map((s) => <button key={s} className="fchip" aria-pressed={status === s} onClick={() => setStatus(s)}>{s === "To bill" ? toBill : s}</button>)}
+        {["All", ...STATUSES.map((s) => s.k)].map((s) => <button key={s} className="fchip" aria-pressed={status === s} onClick={() => setStatus(s)}>{s}</button>)}
       </div>
       <List arr={arr.slice(0, shown)} nameOf={nameOf} isAdmin={isAdmin} open={open} />
       {arr.length > shown && <div className="row" style={{ justifyContent: "center", marginTop: 14 }}>

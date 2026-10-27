@@ -210,3 +210,5 @@ input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and
 /* iPhone Safari zooms in (and stays zoomed) when a field's text is under 16px. Keep every field at 16px. */
 input,select,textarea,.dt input{font-size:16px!important}
 .req{color:var(--s-hold);font-weight:800}
+.stats.four{grid-template-columns:repeat(4,1fr)}
+@media (max-width:560px){.stats.four{grid-template-columns:repeat(2,1fr)}}
