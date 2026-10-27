@@ -6,12 +6,13 @@ create extension if not exists pg_net with schema extensions;
 create schema if not exists private;
 revoke all on schema private from public, anon, authenticated;
 create table if not exists private.settings (key text primary key, value text not null);
+alter table private.settings enable row level security;
 insert into private.settings (key, value) values
   ('sheet_url',    'PASTE_APPS_SCRIPT_URL_HERE'),
   ('sheet_secret', 'PASTE_SHEET_SECRET_HERE'),
   ('push_url',     'https://homewell-app.vercel.app/api/push'),
   ('push_secret',  'PASTE_PUSH_SECRET_HERE')
-on conflict (key) do update set value = excluded.value;
+on conflict (key) do nothing;  -- real values are filled in separately, so re-running keeps them
 
 create or replace function private.setting(k text) returns text
 language sql stable security definer set search_path = private as $$ select value from private.settings where key = k $$;
