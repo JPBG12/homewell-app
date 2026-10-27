@@ -15,24 +15,29 @@ function doPost(e) {
     const p = JSON.parse(e.postData.contents);
     if (p.secret !== SECRET) return out({ error: 'not allowed' });
     const sheet = SpreadsheetApp.getActive().getSheetByName(TAB);
-    const ids = sheet.getRange(2, 15, Math.max(sheet.getLastRow() - 1, 1), 1).getValues()
-      .map(r => String(r[0]).replace(/\.0$/, ''));
-    const rowIndex = ids.indexOf(String(p.unique_id)) + 2; // 1 = not found
-
-    if (p.action === 'delete') {
-      if (rowIndex > 1) sheet.deleteRow(rowIndex);
-      return out({ ok: true, deleted: rowIndex > 1 });
-    }
-    const values = [toRow(p)];
-    if (rowIndex > 1) {
-      sheet.getRange(rowIndex, 1, 1, values[0].length).setValues(values);
-    } else {
-      sheet.insertRowAfter(1);
-      sheet.getRange(2, 1, 1, values[0].length).setValues(values);
-    }
-    return out({ ok: true });
+    // One job, or many at once ({ rows: [...] }) for catch-up imports.
+    const jobs = Array.isArray(p.rows) ? p.rows : [p];
+    jobs.forEach(job => saveJob(sheet, job));
+    return out({ ok: true, count: jobs.length });
   } finally {
     lock.releaseLock();
+  }
+}
+
+function saveJob(sheet, p) {
+  const ids = sheet.getRange(2, 15, Math.max(sheet.getLastRow() - 1, 1), 1).getValues()
+    .map(r => String(r[0]).replace(/\.0$/, ''));
+  const rowIndex = ids.indexOf(String(p.unique_id)) + 2; // 1 = not found
+  if (p.action === 'delete') {
+    if (rowIndex > 1) sheet.deleteRow(rowIndex);
+    return;
+  }
+  const values = [toRow(p)];
+  if (rowIndex > 1) {
+    sheet.getRange(rowIndex, 1, 1, values[0].length).setValues(values);
+  } else {
+    sheet.insertRowAfter(1);
+    sheet.getRange(2, 1, 1, values[0].length).setValues(values);
   }
 }
 
