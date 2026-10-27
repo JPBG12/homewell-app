@@ -453,20 +453,21 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
       <div className="shead"><h1>{i ? "Edit inspection" : "New inspection"}</h1><Close onClose={onClose} /></div>
       <form className="panel" onSubmit={save} autoComplete="off">
         <div className="fgrid">
-          <div className="f wide"><label htmlFor="fn">Client name</label><input id="fn" required value={f.client_name} onChange={set("client_name")} placeholder="e.g. Jordan Smith" /></div>
+          <div className="f wide"><label htmlFor="fn">Client name <span className="req" aria-hidden="true">*</span></label><input id="fn" required value={f.client_name} onChange={set("client_name")} placeholder="e.g. Jordan Smith" /></div>
           <AddressInput value={f.address} pastAddresses={past}
             onChange={(t) => setF((x) => ({ ...x, address: t, lat: null, lng: null, place_id: null }))}
             onPick={(p) => setF((x) => ({ ...x, ...p }))} />
-          <div className="f"><label htmlFor="fd">Date</label><div className="dt"><input id="fd" type="date" required value={f.date} onChange={set("date")} /></div></div>
-          <div className="f"><label htmlFor="ft">Time</label>{Sel({ id: "ft", k: "time", opts: timeOpts, required: true })}</div>
+          <div className="f"><label htmlFor="fd">Date <span className="req" aria-hidden="true">*</span></label><div className="dt"><input id="fd" type="date" required value={f.date} onChange={set("date")} /></div></div>
+          <div className="f"><label htmlFor="ft">Time <span className="req" aria-hidden="true">*</span></label>{Sel({ id: "ft", k: "time", opts: timeOpts, required: true })}</div>
           <div className="f"><label htmlFor="fty">Type</label>{Sel({ id: "fty", k: "type", opts: TYPES })}</div>
-          <div className="f"><label htmlFor="fas">Assessor</label>{Sel({ id: "fas", k: "assessor_id", opts: assessorOpts, required: true })}</div>
+          <div className="f"><label htmlFor="fas">Assessor <span className="req" aria-hidden="true">*</span></label>{Sel({ id: "fas", k: "assessor_id", opts: assessorOpts, required: true })}</div>
           <div className="f"><label htmlFor="fr">Referred by</label>{Sel({ id: "fr", k: "referral_source", opts: refNames })}</div>
           <div className="f"><label htmlFor="fb">Billing</label>{Sel({ id: "fb", k: "billing", opts: BILLING })}</div>
           <div className="f wide"><label htmlFor="fno">Notes <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>(optional)</span></label>
             <textarea id="fno" rows={2} value={f.notes} onChange={set("notes")} /></div>
           {i && <label className="check wide"><input type="checkbox" checked={f.report_sent} onChange={set("report_sent")} /> Report sent to client</label>}
         </div>
+        <p className="memo" style={{ marginTop: 10 }}><span className="req">*</span> Required</p>
         <p className="memo">Invoice memo (created automatically): <b>{f.client_name.trim() || "Client name"} {f.address.trim() || "Address"} ID: {i ? displayId(i) : "HW-####"}</b></p>
         {clashes.length > 0 && (
           <div className="warn"><b>Heads up:</b> {nameOf(f.assessor_id)} already has {clashes.map((x) => `${x.client_name} at ${fmtT(new Date(x.scheduled_at))}`).join(" and ")} on {fmtD(new Date(clashes[0].scheduled_at))}. Appointments are set to {apptHours} hour{apptHours === 1 ? "" : "s"}, so these overlap.</div>
