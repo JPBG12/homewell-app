@@ -25,6 +25,8 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 - Push: Vercel env NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, PUSH_WEBHOOK_SECRET (all set). DB trigger → /api/push.
 - Vercel env also: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_GOOGLE_MAPS_KEY.
 
+- Report reminders (replace Monday's 4–8 day automations): `integrations/report-reminders.gs` is a SECOND file in the same Apps Script project (sheet owned by contact@homewellinc.com). Daily 8 AM ET trigger (setupReminders), emails contact@ only, "{N} Days: {Client} - {Assessor}" for status Inspected 4–8 calendar days after the inspection date; signature from Gmail advanced service if added. Phone side: `supabase/008_report_reminders.sql` (pg_cron 12:05 UTC → notifications for the contact@ profile = Tati). Turn off the Monday automations at switch-over to avoid duplicates.
+
 ## Formats that must match Monday
 - Statuses: Scheduled, Inspected, Ready to Bill, Billed, Completed, Paid, On Hold
 - Client email: "HomeWell | {Name}\n\nHello,\nAttached you may find the {Type} for {Name}. Please let us know if you have any questions. Thanks!"
