@@ -277,7 +277,9 @@ function Calendar({ mine, nameOf, isAdmin, open }) {
 }
 
 function Route({ mine, isAdmin, open, me, assessors }) {
-  const [who, setWho] = useState(isAdmin ? (assessors[0]?.id || me.id) : me.id);
+  // Whoever is signed in comes first and is picked by default (if they do inspections).
+  const people = [...assessors].sort((x, y) => (y.id === me.id) - (x.id === me.id));
+  const [who, setWho] = useState(isAdmin ? (people[0]?.id || me.id) : me.id);
   const today = new Date();
   const stops = useMemo(() => mine.filter((i) => sameDay(new Date(i.scheduled_at), today) && i.assessor_id === who),
     [mine, who]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -289,7 +291,7 @@ function Route({ mine, isAdmin, open, me, assessors }) {
         <div><h1>Today&apos;s route</h1><p className="sub">{stops.length} stop{stops.length === 1 ? "" : "s"} for {whoName} · {fmtD(today)}</p></div>
         {isAdmin && (
           <select className="fsel" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Inspector">
-            {assessors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {people.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         )}
       </div>
