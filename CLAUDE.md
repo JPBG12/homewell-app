@@ -18,7 +18,7 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 3. 003_history.sql — status "Completed, Paid", legacy_id/legacy_assessor, QuickBooks-style invoice memo, bulk mode — DONE (Oct 27)
 4. 004_import_sheet.sql — 615 jobs from "Monday Data for Looker" sheet (not in git: client data; JP has the file) — DONE (Oct 27)
 5. 005_automations.sql — Sheet backup + push triggers via pg_net — DONE (Oct 27). Repo copy has placeholders and RLS; real values were set afterwards with `update private.settings set value = ... where key = ...` (re-running 005 keeps them).
-6. Monday catch-up (not in git) — DONE Oct 27: 72 jobs (62 new + 10 changed since Aug 17) read straight from the Monday board via the monday.com connector (board "Inspections", id 7396554951; Monday times are Eastern), upserted on legacy_id in bulk mode. App then had all 677 Monday jobs. Then sent to the sheet with one net.http_post carrying {rows:[...]} (the .gs accepts batches). JP wants ONE more catch-up right before the team stops using Monday: same method, items updated since Oct 27.
+6. Monday catch-up (not in git) — DONE Oct 27: 72 jobs (62 new + 10 changed since Aug 17) read straight from the Monday board via the monday.com connector (board "Inspections", id 7396554951; Monday times are Eastern), upserted on legacy_id in bulk mode. App then had all 677 Monday jobs. Then sent to the sheet with one net.http_post carrying {rows:[...]} (the .gs accepts batches). Final catch-up built Oct 27 ~5 PM (009, not in git): 2 more jobs (Monday ids 13399780783, 13399774569) → 679 Monday jobs total; also posted to the sheet. If anything is entered in Monday after that, repeat with items updated since Oct 27 19:40 UTC.
 
 ## Integrations
 - Google Sheet backup: `integrations/google-sheet-backup.gs` goes in the "Monday Data for Looker" sheet (Extensions → Apps Script, deploy as Web app, Execute as Me, Anyone). Writes "Inspections Data" rows in the exact Monday column layout so the Looker dashboard keeps working. Est Amount: Mold Assessment $550, others $450.
@@ -34,7 +34,7 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 
 ## Open items
 - Live sheet sync confirmed working Oct 27.
-- Final Monday catch-up right before switching over (see step 6)
+- After switch-over: turn off Monday automations (report reminders duplicate otherwise).
 - Google key: Oct 27 JP walked through adding https://app.homewellinc.com/* + https://homewell-app.vercel.app/* referrers and restricting to Places API (New) + Maps JavaScript API; maps + autofill confirmed working on the new domain.
 - Everyone installs the home-screen app from app.homewellinc.com (new address = new app on iPhone; re-enable notifications from the bell).
 - Add team members in Settings (JP doing this last; names must match Monday: Yania, JA, Marcela, Carlos, JP; Sarah admin). Each turns on phone notifications from the bell. Push confirmed working Oct 27 (JP's phone, signed in as Tati).
