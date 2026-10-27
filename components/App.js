@@ -202,7 +202,7 @@ function Today({ mine, nameOf, isAdmin, open, me, showStatus }) {
       <div className={isAdmin ? "stats four" : "stats"}>
         <div className="stat"><b>{todays.length}</b><span>Today</span></div>
         <div className="stat"><b>{todays.filter((i) => i.status === "Scheduled").length}</b><span>Still to go</span></div>
-        <button className="stat tap" onClick={() => showStatus("Inspected")} aria-label="Show jobs with report pending"><b>{count("Inspected")}</b><span>Report pending ›</span></button>
+        <button className="stat tap" onClick={() => showStatus("Inspected")} aria-label="Show jobs with a pending report"><b>{count("Inspected")}</b><span>Pending report ›</span></button>
         {isAdmin && <button className="stat tap" onClick={() => showStatus("Ready to Bill")} aria-label="Show jobs ready to bill"><b>{count("Ready to Bill")}</b><span>To bill ›</span></button>}
       </div>
       <h2>{isAdmin ? "Everyone's appointments today" : "Your appointments today"}</h2>
