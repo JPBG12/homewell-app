@@ -130,7 +130,7 @@ export default function App({ userId }) {
   if (!me.active) return <div className="loading"><p>Your account has been turned off. Contact Sarah or Tati.</p></div>;
 
   const unread = notis.filter((n) => !n.read).length;
-  const tabs = [["today", "Today"], ["all", "Inspections"], ["cal", "Calendar"], ["route", "Route"], ...(isAdmin ? [["settings", "Settings"]] : [])];
+  const tabs = [["today", "Today"], ["cal", "Calendar"], ["route", "Route"], ["all", "Inspections"], ...(isAdmin ? [["settings", "Settings"]] : [])];
   const shared = { mine, nameOf, isAdmin, open };
 
   return (
