@@ -2,7 +2,7 @@
 
 Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, Peace of Mind). Owner: JP (non-developer; walk him through every click, one step at a time, with screenshots welcome).
 
-- Live: https://homewell-app.vercel.app (Vercel Hobby, auto-deploys from `main` of JPBG12/homewell-app)
+- Live: https://app.homewellinc.com (custom domain, CNAME at SiteGround DNS → Vercel; live Oct 27). Old https://homewell-app.vercel.app still works (Vercel Hobby, auto-deploys from `main` of JPBG12/homewell-app)
 - Stack: Next.js 15 (app router, plain JS) + Supabase (project `onqayakixfdiissvfcmd`) + Google Maps (key in "My First Project")
 - Installs on iPhone via Safari → Share → Add to Home Screen (PWA, `public/manifest.webmanifest`, `public/sw.js`)
 - iPhone: every input must stay at 16px+ text or Safari zooms in and stays zoomed (rule at end of globals.css).
@@ -33,6 +33,6 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 ## Open items
 - Live sheet sync confirmed working Oct 27.
 - Final Monday catch-up right before switching over (see step 6)
-- JP: tighten Google key (referrers end in /*, APIs = Places API (New) + Maps JavaScript API only)
-- Custom domain app.homewellinc.com (Vercel Domains + CNAME at the DNS host)
+- Google key: Oct 27 JP walked through adding https://app.homewellinc.com/* + https://homewell-app.vercel.app/* referrers and restricting to Places API (New) + Maps JavaScript API; maps + autofill confirmed working on the new domain.
+- Everyone installs the home-screen app from app.homewellinc.com (new address = new app on iPhone; re-enable notifications from the bell).
 - Add team members in Settings (JP doing this last; names must match Monday: Yania, JA, Marcela, Carlos, JP; Sarah admin). Each turns on phone notifications from the bell. Push confirmed working Oct 27 (JP's phone, signed in as Tati).
