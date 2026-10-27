@@ -11,7 +11,8 @@ import PushToggle from "./PushToggle";
 
 const RouteMap = dynamic(() => import("./RouteMap"), { ssr: false, loading: () => <div className="lmap" /> });
 const supabase = createClient();
-const HISTORY_DAYS = 180; // how far back the lists load; search reaches everything
+const TO_BILL = ["Inspected", "Ready to Bill"]; // what the "To bill" box counts
+const PAGE = 100; // cards shown at a time in the Inspections list
 
 /* ───────── icons ───────── */
 const Pin = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>);
@@ -63,6 +64,7 @@ export default function App({ userId }) {
   const [items, setItems] = useState([]);
   const [notis, setNotis] = useState([]);
   const [view, setView] = useState("today");
+  const [listStatus, setListStatus] = useState("All"); // filter the Inspections list opens with
   const [sheet, setSheet] = useState(null); // {kind, id}
   const [toastMsg, setToastMsg] = useState("");
   const [loadErr, setLoadErr] = useState("");
@@ -79,9 +81,16 @@ export default function App({ userId }) {
     if (data) setRefs(data);
   }, []);
   const loadItems = useCallback(async () => {
-    const since = new Date(Date.now() - HISTORY_DAYS * 864e5).toISOString();
-    const { data, error } = await supabase.from("inspections").select("*").gte("scheduled_at", since).order("scheduled_at");
-    if (error) setLoadErr(error.message); else setItems(data);
+    // Load every job since day one, 1000 at a time (Supabase sends at most 1000 per request).
+    const all = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from("inspections").select("*")
+        .order("scheduled_at").order("id").range(from, from + 999);
+      if (error) { setLoadErr(error.message); return; }
+      all.push(...data);
+      if (data.length < 1000) break;
+    }
+    setItems(all);
   }, []);
   const loadNotis = useCallback(async () => {
     const { data } = await supabase.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
@@ -144,13 +153,13 @@ export default function App({ userId }) {
 
       <nav className="tabs">
         {tabs.map(([v, label]) => (
-          <button key={v} className="tab" aria-current={view === v} onClick={() => { setView(v); scrollTo(0, 0); }}>{I[v]}{label}</button>
+          <button key={v} className="tab" aria-current={view === v} onClick={() => { setView(v); setListStatus("All"); scrollTo(0, 0); }}>{I[v]}{label}</button>
         ))}
       </nav>
 
       <main className="wrap">
-        {view === "today" && <Today {...shared} me={me} />}
-        {view === "all" && <AllList {...shared} assessors={assessors} />}
+        {view === "today" && <Today {...shared} me={me} showToBill={() => { setListStatus("To bill"); setView("all"); scrollTo(0, 0); }} />}
+        {view === "all" && <AllList key={listStatus} {...shared} assessors={assessors} initialStatus={listStatus} />}
         {view === "cal" && <Calendar {...shared} />}
         {view === "route" && <Route {...shared} me={me} assessors={assessors} />}
         {view === "settings" && isAdmin && <Settings me={me} refs={refs} apptHours={apptHours} setApptHours={setApptHours}
@@ -182,10 +191,10 @@ function List({ arr, nameOf, isAdmin, open, empty = "No inspections here." }) {
   return <div className="list">{arr.map((i) => <Card key={i.id} i={i} name={i.assessor_id ? nameOf(i.assessor_id) : (i.legacy_assessor || "Unassigned")} showAssessor={isAdmin} onOpen={open} />)}</div>;
 }
 
-function Today({ mine, nameOf, isAdmin, open, me }) {
+function Today({ mine, nameOf, isAdmin, open, me, showToBill }) {
   const now = new Date();
   const todays = mine.filter((i) => sameDay(new Date(i.scheduled_at), now));
-  const pending = mine.filter((i) => ["Inspected", "Ready to Bill"].includes(i.status)).length;
+  const pending = mine.filter((i) => TO_BILL.includes(i.status)).length;
   const hr = now.getHours(), greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   return (
     <>
@@ -194,7 +203,7 @@ function Today({ mine, nameOf, isAdmin, open, me }) {
       <div className="stats">
         <div className="stat"><b>{todays.length}</b><span>Today</span></div>
         <div className="stat"><b>{todays.filter((i) => i.status === "Scheduled").length}</b><span>Still to go</span></div>
-        <div className="stat"><b>{pending}</b><span>{isAdmin ? "To bill" : "Awaiting report"}</span></div>
+        <button className="stat tap" onClick={showToBill} aria-label="Show jobs to bill"><b>{pending}</b><span>{isAdmin ? "To bill" : "Awaiting report"} ›</span></button>
       </div>
       <h2>{isAdmin ? "Everyone's appointments today" : "Your appointments today"}</h2>
       <List arr={todays} nameOf={nameOf} isAdmin={isAdmin} open={open} empty="Nothing scheduled today." />
@@ -202,14 +211,18 @@ function Today({ mine, nameOf, isAdmin, open, me }) {
   );
 }
 
-function AllList({ mine, nameOf, isAdmin, open, assessors }) {
-  const [q, setQ] = useState(""), [status, setStatus] = useState("All"), [who, setWho] = useState("All");
-  const arr = mine.filter((i) => (status === "All" || i.status === status) && (who === "All" || i.assessor_id === who) &&
+function AllList({ mine, nameOf, isAdmin, open, assessors, initialStatus = "All" }) {
+  const [q, setQ] = useState(""), [status, setStatus] = useState(initialStatus), [who, setWho] = useState("All");
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => setShown(PAGE), [q, status, who]);
+  const toBill = isAdmin ? "To bill" : "Awaiting report";
+  const arr = mine.filter((i) => (status === "All" || (status === "To bill" ? TO_BILL.includes(i.status) : i.status === status)) &&
+    (who === "All" || i.assessor_id === who) &&
     [i.client_name, i.address, i.code, i.legacy_id].join(" ").toLowerCase().includes(q.toLowerCase())).slice().reverse();
   return (
     <>
       <h1>Inspections</h1>
-      <p className="sub">{arr.length} of {mine.length} shown · last {HISTORY_DAYS} days and upcoming</p>
+      <p className="sub">{arr.length === mine.length ? `${arr.length} inspections` : `${arr.length} of ${mine.length} inspections`}</p>
       <div className="toolbar">
         <input className="search" placeholder="Search name, address or ID" value={q} onChange={(e) => setQ(e.target.value)} />
         {isAdmin && (
@@ -220,10 +233,11 @@ function AllList({ mine, nameOf, isAdmin, open, assessors }) {
         )}
       </div>
       <div className="chips">
-        {["All", ...STATUSES.map((s) => s.k)].map((s) => <button key={s} className="fchip" aria-pressed={status === s} onClick={() => setStatus(s)}>{s}</button>)}
+        {["All", "To bill", ...STATUSES.map((s) => s.k)].map((s) => <button key={s} className="fchip" aria-pressed={status === s} onClick={() => setStatus(s)}>{s === "To bill" ? toBill : s}</button>)}
       </div>
-      <List arr={arr} nameOf={nameOf} isAdmin={isAdmin} open={open} />
-      <p className="locknote">Older jobs: use the search button at the top.</p>
+      <List arr={arr.slice(0, shown)} nameOf={nameOf} isAdmin={isAdmin} open={open} />
+      {arr.length > shown && <div className="row" style={{ justifyContent: "center", marginTop: 14 }}>
+        <button className="btn ghost sm" onClick={() => setShown(shown + PAGE)}>Show more ({arr.length - shown} older)</button></div>}
     </>
   );
 }

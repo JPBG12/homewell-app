@@ -78,6 +78,8 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mute
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
 .stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums}
 .stat span{font-size:12px;color:var(--muted);font-weight:600}
+.stat.tap{font:inherit;color:inherit;text-align:left;cursor:pointer;width:100%}
+.stat.tap:active{transform:scale(.98)}
 
 .list{display:flex;flex-direction:column;gap:10px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;grid-template-columns:62px 1fr;gap:12px;text-align:left;width:100%}
