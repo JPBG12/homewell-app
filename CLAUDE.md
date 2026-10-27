@@ -5,6 +5,7 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 - Live: https://homewell-app.vercel.app (Vercel Hobby, auto-deploys from `main` of JPBG12/homewell-app)
 - Stack: Next.js 15 (app router, plain JS) + Supabase (project `onqayakixfdiissvfcmd`) + Google Maps (key in "My First Project")
 - Installs on iPhone via Safari → Share → Add to Home Screen (PWA, `public/manifest.webmanifest`, `public/sw.js`)
+- iPhone: every input must stay at 16px+ text or Safari zooms in and stays zoomed (rule at end of globals.css).
 - Brand: navy #1A1945/#21225B, blue #136AFF, teal #46E3D5; logo `public/logo.png`
 
 ## People / roles
@@ -14,9 +15,10 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 ## Database steps (supabase/*.sql, run by hand in Supabase SQL Editor)
 1. schema.sql — DONE
 2. 002_team.sql — DONE
-3. 003_history.sql — status "Completed, Paid", legacy_id/legacy_assessor, QuickBooks-style invoice memo, bulk mode — CHECK WITH JP
-4. 004_import_sheet.sql — 615 jobs from "Monday Data for Looker" sheet (not in git: client data; JP has the file) — CHECK WITH JP
-5. 005_automations.sql — Sheet backup + push triggers via pg_net. Needs the Apps Script web app URL pasted in. JP has a copy with secrets already filled in; the repo copy has placeholders.
+3. 003_history.sql — status "Completed, Paid", legacy_id/legacy_assessor, QuickBooks-style invoice memo, bulk mode — DONE (Oct 27)
+4. 004_import_sheet.sql — 615 jobs from "Monday Data for Looker" sheet (not in git: client data; JP has the file) — DONE (Oct 27)
+5. 005_automations.sql — Sheet backup + push triggers via pg_net — DONE (Oct 27). Repo copy has placeholders and RLS; real values were set afterwards with `update private.settings set value = ... where key = ...` (re-running 005 keeps them).
+6. Monday catch-up (not in git) — DONE Oct 27: 72 jobs (62 new + 10 changed since Aug 17) read straight from the Monday board via the monday.com connector (board "Inspections", id 7396554951; Monday times are Eastern), upserted on legacy_id in bulk mode. App then had all 677 Monday jobs. Then sent to the sheet with one net.http_post carrying {rows:[...]} (the .gs accepts batches). JP wants ONE more catch-up right before the team stops using Monday: same method, items updated since Oct 27.
 
 ## Integrations
 - Google Sheet backup: `integrations/google-sheet-backup.gs` goes in the "Monday Data for Looker" sheet (Extensions → Apps Script, deploy as Web app, Execute as Me, Anyone). Writes "Inspections Data" rows in the exact Monday column layout so the Looker dashboard keeps working. Est Amount: Mold Assessment $550, others $450.
@@ -29,8 +31,8 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 - Invoice memo (QB): "{Name} {Address} ID: {Monday ID or HW-####}"
 
 ## Open items
-- Run 003 + 004 (if not yet), Apps Script URL → fill + run 005
-- Monday jobs after Aug 17, 2026 aren't in the sheet: import from a Monday Excel export
+- Final Monday catch-up right before switching over (see step 6)
+- Confirm live sheet sync: change a job's status in the app → row appears at top of "Inspections Data"
 - JP: tighten Google key (referrers end in /*, APIs = Places API (New) + Maps JavaScript API only)
 - Custom domain app.homewellinc.com (Vercel Domains + CNAME at the DNS host)
 - Add team members in Settings; each turns on phone notifications from the bell
