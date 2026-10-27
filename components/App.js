@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import {
-  STATUSES, TYPES, BILLING, statusColor, sameDay, fmtT, fmtD, fmtLong, startOfWeek, mapLinks, routeLinks, clientEmail, copyText, displayId,
+  STATUSES, TYPES, BILLING, statusColor, sameDay, fmtT, fmtD, fmtDY, fmtLong, startOfWeek, mapLinks, routeLinks, clientEmail, copyText, displayId,
 } from "@/lib/constants";
 import AddressInput from "./AddressInput";
 import ChangePassword from "./ChangePassword";
@@ -48,7 +48,7 @@ function Card({ i, name, showAssessor, onOpen }) {
         <div className="meta">
           {i.type && <span className="chip">{i.type}</span>}
           {showAssessor && <span className="chip">{name}</span>}
-          {!sameDay(d, new Date()) && <span className="chip">{fmtD(d)}</span>}
+          <span className="chip">{fmtDY(d)}</span>
         </div>
       </div>
     </button>
@@ -345,7 +345,7 @@ function Detail({ i, nameOf, isAdmin, onClose, onEdit, toast, reload }) {
   return (
     <Sheet onClose={onClose}>
       <div className="shead">
-        <div><small className="time">ID {displayId(i)}</small><h1>{i.client_name}</h1><p className="sub">{fmtD(d)} · {fmtT(d)}</p></div>
+        <div><small className="time">ID {displayId(i)}</small><h1>{i.client_name}</h1><p className="sub">{fmtDY(d)} · {fmtT(d)}</p></div>
         <Close onClose={onClose} />
       </div>
       <div className="panel">
