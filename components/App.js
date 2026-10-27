@@ -301,7 +301,7 @@ function Route({ mine, isAdmin, open, me, assessors }) {
           {stops.length ? stops.map((s, k) => (
             <div className="stop" key={s.id}>
               <span className="num">{k + 1}</span>
-              <div style={{ minWidth: 0 }}><b>{fmtT(new Date(s.scheduled_at))} · {s.client_name}</b><div className="addr">{s.address}</div></div>
+              <div style={{ minWidth: 0 }}><b>{fmtT(new Date(s.scheduled_at))} · {s.client_name}</b><div className="addr">{s.address || "No address yet"}</div></div>
               <button className="btn ghost sm" onClick={() => open(s.id)}>Open</button>
             </div>
           )) : <div className="empty" style={{ border: 0 }}>No stops today.</div>}
@@ -410,6 +410,12 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
     notes: i?.notes || "", report_sent: i?.report_sent || false,
   });
   const [busy, setBusy] = useState(false);
+  const timeOpts = useMemo(() => {
+    const list = [];
+    for (let m = 6 * 60; m <= 20 * 60; m += 30) list.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+    if (f.time && !list.includes(f.time)) list.push(f.time);
+    return list.sort().map((t) => ({ id: t, name: fmtT(new Date(`2000-01-01T${t}`)) }));
+  }, [f.time]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   const when = f.date && f.time ? new Date(`${f.date}T${f.time}`) : null;
@@ -424,9 +430,9 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
     e.preventDefault();
     setBusy(true);
     const row = {
-      client_name: f.client_name.trim(), address: f.address.trim(), lat: f.lat, lng: f.lng, place_id: f.place_id,
-      scheduled_at: when.toISOString(), type: f.type, assessor_id: f.assessor_id, referral_source: f.referral_source,
-      billing: f.billing, notes: f.notes.trim() || null, report_sent: f.report_sent,
+      client_name: f.client_name.trim(), address: f.address.trim() || null, lat: f.lat, lng: f.lng, place_id: f.place_id,
+      scheduled_at: when.toISOString(), type: f.type || null, assessor_id: f.assessor_id, referral_source: f.referral_source || null,
+      billing: f.billing || null, notes: f.notes.trim() || null, report_sent: f.report_sent,
     };
     const { error } = i ? await supabase.from("inspections").update(row).eq("id", i.id) : await supabase.from("inspections").insert(row);
     setBusy(false);
@@ -435,9 +441,9 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
     onClose(); reload();
   }
 
-  const Sel = ({ id, k, opts }) => (
-    <select id={id} required value={f[k]} onChange={set(k)}>
-      <option value="" disabled>Choose…</option>
+  const Sel = ({ id, k, opts, required = false }) => (
+    <select id={id} required={required} value={f[k]} onChange={set(k)}>
+      <option value="" disabled={required}>{required ? "Choose…" : "Not set yet"}</option>
       {opts.map((o) => typeof o === "string" ? <option key={o}>{o}</option> : <option key={o.id} value={o.id}>{o.name}</option>)}
     </select>
   );
@@ -452,9 +458,9 @@ function InspectionForm({ i, items, assessors, refs, apptHours, nameOf, onClose,
             onChange={(t) => setF((x) => ({ ...x, address: t, lat: null, lng: null, place_id: null }))}
             onPick={(p) => setF((x) => ({ ...x, ...p }))} />
           <div className="f"><label htmlFor="fd">Date</label><div className="dt"><input id="fd" type="date" required value={f.date} onChange={set("date")} /></div></div>
-          <div className="f"><label htmlFor="ft">Time</label><div className="dt"><input id="ft" type="time" required value={f.time} onChange={set("time")} /></div></div>
+          <div className="f"><label htmlFor="ft">Time</label>{Sel({ id: "ft", k: "time", opts: timeOpts, required: true })}</div>
           <div className="f"><label htmlFor="fty">Type</label>{Sel({ id: "fty", k: "type", opts: TYPES })}</div>
-          <div className="f"><label htmlFor="fas">Assessor</label>{Sel({ id: "fas", k: "assessor_id", opts: assessorOpts })}</div>
+          <div className="f"><label htmlFor="fas">Assessor</label>{Sel({ id: "fas", k: "assessor_id", opts: assessorOpts, required: true })}</div>
           <div className="f"><label htmlFor="fr">Referred by</label>{Sel({ id: "fr", k: "referral_source", opts: refNames })}</div>
           <div className="f"><label htmlFor="fb">Billing</label>{Sel({ id: "fb", k: "billing", opts: BILLING })}</div>
           <div className="f wide"><label htmlFor="fno">Notes <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>(optional)</span></label>

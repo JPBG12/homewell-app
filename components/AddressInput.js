@@ -60,8 +60,8 @@ export default function AddressInput({ value, onChange, onPick, pastAddresses })
   return (
     <div className="f wide acwrap" ref={box}
       onBlur={() => setTimeout(() => { if (!box.current?.contains(document.activeElement)) setHits([]); }, 150)}>
-      <label htmlFor="fad">Property address</label>
-      <input id="fad" required value={value} placeholder="Start typing a street address" autoComplete="off"
+      <label htmlFor="fad">Property address <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>(optional)</span></label>
+      <input id="fad" value={value} placeholder="Start typing a street address" autoComplete="off"
         role="combobox" aria-autocomplete="list" aria-expanded={hits.length > 0}
         onChange={(e) => typed(e.target.value)}
         onKeyDown={(e) => { if (e.key === "ArrowDown" && hits.length) { e.preventDefault(); box.current.querySelector(".suggest button")?.focus(); } }} />
