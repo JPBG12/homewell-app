@@ -31,8 +31,8 @@ Replacement for Monday.com for HomeWell Services, Inc. (mold assessments, PRV, P
 - Invoice memo (QB): "{Name} {Address} ID: {Monday ID or HW-####}"
 
 ## Open items
+- Live sheet sync confirmed working Oct 27.
 - Final Monday catch-up right before switching over (see step 6)
-- Confirm live sheet sync: change a job's status in the app → row appears at top of "Inspections Data"
 - JP: tighten Google key (referrers end in /*, APIs = Places API (New) + Maps JavaScript API only)
 - Custom domain app.homewellinc.com (Vercel Domains + CNAME at the DNS host)
-- Add team members in Settings; each turns on phone notifications from the bell
+- Add team members in Settings (JP doing this last; names must match Monday: Yania, JA, Marcela, Carlos, JP; Sarah admin). Each turns on phone notifications from the bell. Push confirmed working Oct 27 (JP's phone, signed in as Tati).
