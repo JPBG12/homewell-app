@@ -241,27 +241,25 @@ function AllList({ mine, nameOf, isAdmin, open, assessors, initialStatus = "All"
   );
 }
 
-function Calendar({ mine, nameOf, isAdmin, open }) {
+// Week strip: Sun–Sat buttons with job counts, plus Prev / This week / Next.
+function WeekStrip({ jobs, day, setDay }) {
   const today = new Date();
-  const [weekStart, setWeekStart] = useState(startOfWeek(today)), [day, setDay] = useState(today);
+  const weekStart = startOfWeek(day);
   const days = [...Array(7)].map((_, k) => { const x = new Date(weekStart); x.setDate(x.getDate() + k); return x; });
   const shift = (k) => {
-    if (k === 0) { setWeekStart(startOfWeek(today)); setDay(today); return; }
-    const w = new Date(weekStart); w.setDate(w.getDate() + 7 * k); setWeekStart(w); setDay(w);
+    if (k === 0) return setDay(today);
+    const w = new Date(weekStart); w.setDate(w.getDate() + 7 * k); setDay(w);
   };
   return (
     <>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div><h1>Calendar</h1><p className="sub">{fmtD(days[0])} – {fmtD(days[6])}</p></div>
-        <div className="row">
-          <button className="btn ghost sm" onClick={() => shift(-1)}>‹ Prev</button>
-          <button className="btn ghost sm" onClick={() => shift(0)}>This week</button>
-          <button className="btn ghost sm" onClick={() => shift(1)}>Next ›</button>
-        </div>
+      <div className="row" style={{ justifyContent: "flex-end", marginTop: 10 }}>
+        <button className="btn ghost sm" onClick={() => shift(-1)}>‹ Prev</button>
+        <button className="btn ghost sm" onClick={() => shift(0)}>This week</button>
+        <button className="btn ghost sm" onClick={() => shift(1)}>Next ›</button>
       </div>
       <div className="week">
         {days.map((x) => {
-          const n = mine.filter((i) => sameDay(new Date(i.scheduled_at), x)).length;
+          const n = jobs.filter((i) => sameDay(new Date(i.scheduled_at), x)).length;
           return (
             <button key={x.getTime()} className={`day ${sameDay(x, today) ? "today" : ""}`} aria-pressed={sameDay(x, day)} onClick={() => setDay(x)}>
               <small>{x.toLocaleDateString("en-US", { weekday: "short" })}</small><b>{x.getDate()}</b><i>{n ? `${n} job${n > 1 ? "s" : ""}` : ""}</i>
@@ -269,8 +267,81 @@ function Calendar({ mine, nameOf, isAdmin, open }) {
           );
         })}
       </div>
-      <h2>{fmtLong(day)}</h2>
-      <List arr={mine.filter((i) => sameDay(new Date(i.scheduled_at), day))} nameOf={nameOf} isAdmin={isAdmin} open={open} />
+    </>
+  );
+}
+
+const shortTime = (d) => fmtT(d).replace(" ", "");
+
+function Calendar({ mine, nameOf, isAdmin, open }) {
+  const today = new Date();
+  const [mode, setModeRaw] = useState("week");
+  useEffect(() => { try { const v = localStorage.getItem("hw-cal-view"); if (v === "month") setModeRaw(v); } catch {} }, []);
+  const setMode = (m) => { setModeRaw(m); try { localStorage.setItem("hw-cal-view", m); } catch {} };
+  const [day, setDay] = useState(today);
+  const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const who = (i) => (i.assessor_id ? nameOf(i.assessor_id) : i.legacy_assessor || "Unassigned");
+  const shiftMonth = (k) => setMonth(k === 0 ? new Date(today.getFullYear(), today.getMonth(), 1) : new Date(month.getFullYear(), month.getMonth() + k, 1));
+
+  // Month grid: from the Sunday on/before the 1st to the Saturday on/after the last day.
+  const gridStart = startOfWeek(month);
+  const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const weeks = Math.ceil((last.getDate() + month.getDay()) / 7);
+  const cells = [...Array(weeks * 7)].map((_, k) => { const x = new Date(gridStart); x.setDate(x.getDate() + k); return x; });
+  const byDay = useMemo(() => {
+    const m = {};
+    mine.forEach((i) => { const k = new Date(i.scheduled_at).toDateString(); (m[k] ||= []).push(i); });
+    Object.values(m).forEach((arr) => arr.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)));
+    return m;
+  }, [mine]);
+  const MAX = 3;
+
+  return (
+    <>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <div><h1>Calendar</h1>
+          <p className="sub">{mode === "month" ? month.toLocaleDateString("en-US", { month: "long", year: "numeric" }) : `Week of ${fmtD(startOfWeek(day))}`}</p></div>
+        <div className="seg" role="group" aria-label="Calendar view">
+          <button aria-pressed={mode === "week"} onClick={() => setMode("week")}>Week</button>
+          <button aria-pressed={mode === "month"} onClick={() => setMode("month")}>Month</button>
+        </div>
+      </div>
+
+      {mode === "week" ? (
+        <>
+          <WeekStrip jobs={mine} day={day} setDay={setDay} />
+          <h2>{fmtLong(day)}</h2>
+          <List arr={mine.filter((i) => sameDay(new Date(i.scheduled_at), day))} nameOf={nameOf} isAdmin={isAdmin} open={open} />
+        </>
+      ) : (
+        <>
+          <div className="row" style={{ justifyContent: "flex-end", marginTop: 10 }}>
+            <button className="btn ghost sm" onClick={() => shiftMonth(-1)}>‹ Prev</button>
+            <button className="btn ghost sm" onClick={() => shiftMonth(0)}>This month</button>
+            <button className="btn ghost sm" onClick={() => shiftMonth(1)}>Next ›</button>
+          </div>
+          <div className="mgrid">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => <div key={w} className="mhead">{w}</div>)}
+            {cells.map((x) => {
+              const jobs = byDay[x.toDateString()] || [];
+              const out = x.getMonth() !== month.getMonth();
+              return (
+                <div key={x.getTime()} className={`mcell${out ? " out" : ""}`}>
+                  <button className={`mnum${sameDay(x, today) ? " now" : ""}`} onClick={() => { setDay(x); setMode("week"); }} aria-label={`Show ${fmtLong(x)}`}>{x.getDate()}</button>
+                  {jobs.slice(0, MAX).map((i) => {
+                    const label = `${shortTime(new Date(i.scheduled_at))} ${i.client_name}${isAdmin ? ` - ${who(i)}` : ""}`;
+                    return <button key={i.id} className="mev" style={{ "--c": `var(${statusColor(i.status)})` }} title={`${label} · ${i.status}`} onClick={() => open(i.id)}><span><b>{shortTime(new Date(i.scheduled_at))}</b> {i.client_name}{isAdmin ? ` - ${who(i)}` : ""}</span></button>;
+                  })}
+                  {jobs.length > MAX && <button className="mmore" onClick={() => { setDay(x); setMode("week"); }}>+{jobs.length - MAX} more</button>}
+                </div>
+              );
+            })}
+          </div>
+          <div className="legend">
+            {STATUSES.map((st) => <span key={st.k}><i style={{ background: `var(${st.c})` }} />{st.k}</span>)}
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -280,21 +351,24 @@ function Route({ mine, isAdmin, open, me, assessors }) {
   const people = [...assessors].sort((x, y) => (y.id === me.id) - (x.id === me.id));
   const [who, setWho] = useState(isAdmin ? (people[0]?.id || me.id) : me.id);
   const today = new Date();
-  const stops = useMemo(() => mine.filter((i) => sameDay(new Date(i.scheduled_at), today) && i.assessor_id === who),
-    [mine, who]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [day, setDay] = useState(today);
+  const isToday = sameDay(day, today);
+  const theirs = useMemo(() => mine.filter((i) => i.assessor_id === who), [mine, who]);
+  const stops = useMemo(() => theirs.filter((i) => sameDay(new Date(i.scheduled_at), day)), [theirs, day]);
   const links = routeLinks(stops);
   const whoName = assessors.find((a) => a.id === who)?.name || me.name;
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <div><h1>Today&apos;s route</h1><p className="sub">{stops.length} stop{stops.length === 1 ? "" : "s"} for {whoName} · {fmtD(today)}</p></div>
+        <div><h1>{isToday ? "Today\u2019s route" : "Route"}</h1><p className="sub">{stops.length} stop{stops.length === 1 ? "" : "s"} for {whoName} · {fmtD(day)}</p></div>
         {isAdmin && (
           <select className="fsel" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Inspector">
             {people.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         )}
       </div>
-      <div className="mapwrap" style={{ marginTop: 14 }}>
+      <WeekStrip jobs={theirs} day={day} setDay={setDay} />
+      <div className="mapwrap">
         <RouteMap stops={stops} />
         <div className="stops">
           {stops.length ? stops.map((s, k) => (
@@ -303,7 +377,7 @@ function Route({ mine, isAdmin, open, me, assessors }) {
               <div style={{ minWidth: 0 }}><b>{fmtT(new Date(s.scheduled_at))} · {s.client_name}</b><div className="addr">{s.address || "No address yet"}</div></div>
               <button className="btn ghost sm" onClick={() => open(s.id)}>Open</button>
             </div>
-          )) : <div className="empty" style={{ border: 0 }}>No stops today.</div>}
+          )) : <div className="empty" style={{ border: 0 }}>{isToday ? "No stops today." : "No stops this day."}</div>}
         </div>
       </div>
       {links && (
