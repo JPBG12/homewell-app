@@ -277,11 +277,14 @@ function Calendar({ mine, nameOf, isAdmin, open }) {
   const today = new Date();
   const [mode, setModeRaw] = useState("week");
   useEffect(() => { try { const v = localStorage.getItem("hw-cal-view"); if (v === "month") setModeRaw(v); } catch {} }, []);
-  const setMode = (m) => { setModeRaw(m); try { localStorage.setItem("hw-cal-view", m); } catch {} };
+  const setMode = (m) => { setModeRaw(m); setPop(null); try { localStorage.setItem("hw-cal-view", m); } catch {} };
   const [day, setDay] = useState(today);
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [pop, setPop] = useState(null); // quick view of one day: { key, date, style }
+  const wrapRef = useRef(), gridRef = useRef(), popRef = useRef();
+  const [fit, setFit] = useState(null); // desktop: { rowH } so the whole month fits on screen
   const who = (i) => (i.assessor_id ? nameOf(i.assessor_id) : i.legacy_assessor || "Unassigned");
-  const shiftMonth = (k) => setMonth(k === 0 ? new Date(today.getFullYear(), today.getMonth(), 1) : new Date(month.getFullYear(), month.getMonth() + k, 1));
+  const shiftMonth = (k) => { setPop(null); setMonth(k === 0 ? new Date(today.getFullYear(), today.getMonth(), 1) : new Date(month.getFullYear(), month.getMonth() + k, 1)); };
 
   // Month grid: from the Sunday on/before the 1st to the Saturday on/after the last day.
   const gridStart = startOfWeek(month);
@@ -294,16 +297,64 @@ function Calendar({ mine, nameOf, isAdmin, open }) {
     Object.values(m).forEach((arr) => arr.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)));
     return m;
   }, [mine]);
-  const MAX = 3;
+
+  // On a computer, size the rows so the whole month fits in the window (no scrolling).
+  useEffect(() => {
+    if (mode !== "month") return;
+    const measure = () => {
+      const g = gridRef.current;
+      if (!g || innerWidth < 900 || innerHeight < 560) return setFit(null);
+      const top = g.getBoundingClientRect().top + scrollY;
+      const avail = innerHeight - top - 48; // room for the color key below
+      setFit({ rowH: Math.max(72, Math.floor((avail - 30) / weeks)) });
+    };
+    measure();
+    addEventListener("resize", measure);
+    return () => removeEventListener("resize", measure);
+  }, [mode, weeks]);
+
+  // Close the quick view on outside click or Esc.
+  useEffect(() => {
+    if (!pop) return;
+    const down = (e) => { if (popRef.current && !popRef.current.contains(e.target) && !e.target.closest?.(".mmore")) setPop(null); };
+    const key = (e) => e.key === "Escape" && setPop(null);
+    document.addEventListener("mousedown", down); document.addEventListener("touchstart", down); addEventListener("keydown", key);
+    return () => { document.removeEventListener("mousedown", down); document.removeEventListener("touchstart", down); removeEventListener("keydown", key); };
+  }, [pop]);
+
+  const showMore = (x, idx, cellEl) => {
+    const key = x.toDateString();
+    if (pop?.key === key) return setPop(null);
+    const w = wrapRef.current.getBoundingClientRect(), c = cellEl.getBoundingClientRect();
+    const col = idx % 7, row = Math.floor(idx / 7);
+    const style = { top: c.top - w.top - 4 };
+    if (col >= 4) style.right = w.right - c.right - 4; else style.left = c.left - w.left - 4;
+    if (row >= weeks - 2) { delete style.top; style.bottom = w.bottom - c.bottom - 4; }
+    setPop({ key, date: x, style });
+  };
+
+  // How many jobs fit in a day box (computer: from the row height; phone: 3).
+  const EV = 24, HEAD = 32, MORE = 19;
+  const fitAll = fit ? Math.max(1, Math.floor((fit.rowH - HEAD) / EV)) : 3;
+  const fitWithMore = fit ? Math.max(1, Math.floor((fit.rowH - HEAD - MORE) / EV)) : 3;
+  const evLabel = (i) => <><b>{shortTime(new Date(i.scheduled_at))}</b> {i.client_name}{isAdmin ? ` - ${who(i)}` : ""}</>;
+  const evTitle = (i) => `${shortTime(new Date(i.scheduled_at))} ${i.client_name}${isAdmin ? ` - ${who(i)}` : ""} · ${i.status}`;
 
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div><h1>Calendar</h1>
           <p className="sub">{mode === "month" ? month.toLocaleDateString("en-US", { month: "long", year: "numeric" }) : `Week of ${fmtD(startOfWeek(day))}`}</p></div>
-        <div className="seg" role="group" aria-label="Calendar view">
-          <button aria-pressed={mode === "week"} onClick={() => setMode("week")}>Week</button>
-          <button aria-pressed={mode === "month"} onClick={() => setMode("month")}>Month</button>
+        <div className="row">
+          {mode === "month" && <span className="mnav top">
+            <button className="btn ghost sm" onClick={() => shiftMonth(-1)}>‹ Prev</button>
+            <button className="btn ghost sm" onClick={() => shiftMonth(0)}>This month</button>
+            <button className="btn ghost sm" onClick={() => shiftMonth(1)}>Next ›</button>
+          </span>}
+          <div className="seg" role="group" aria-label="Calendar view">
+            <button aria-pressed={mode === "week"} onClick={() => setMode("week")}>Week</button>
+            <button aria-pressed={mode === "month"} onClick={() => setMode("month")}>Month</button>
+          </div>
         </div>
       </div>
 
@@ -314,33 +365,47 @@ function Calendar({ mine, nameOf, isAdmin, open }) {
           <List arr={mine.filter((i) => sameDay(new Date(i.scheduled_at), day))} nameOf={nameOf} isAdmin={isAdmin} open={open} />
         </>
       ) : (
-        <>
-          <div className="row" style={{ justifyContent: "flex-end", marginTop: 10 }}>
+        <div className="mwrap" ref={wrapRef}>
+          <div className="mnav below">
             <button className="btn ghost sm" onClick={() => shiftMonth(-1)}>‹ Prev</button>
             <button className="btn ghost sm" onClick={() => shiftMonth(0)}>This month</button>
             <button className="btn ghost sm" onClick={() => shiftMonth(1)}>Next ›</button>
           </div>
-          <div className="mgrid">
+          <div className={`mgrid${fit ? " fit" : ""}`} ref={gridRef}
+            style={fit ? { gridTemplateRows: `auto repeat(${weeks}, ${fit.rowH}px)` } : undefined}>
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => <div key={w} className="mhead">{w}</div>)}
-            {cells.map((x) => {
+            {cells.map((x, idx) => {
               const jobs = byDay[x.toDateString()] || [];
               const out = x.getMonth() !== month.getMonth();
+              const shown = jobs.length <= fitAll ? jobs : jobs.slice(0, fitWithMore);
               return (
                 <div key={x.getTime()} className={`mcell${out ? " out" : ""}`}>
                   <button className={`mnum${sameDay(x, today) ? " now" : ""}`} onClick={() => { setDay(x); setMode("week"); }} aria-label={`Show ${fmtLong(x)}`}>{x.getDate()}</button>
-                  {jobs.slice(0, MAX).map((i) => {
-                    const label = `${shortTime(new Date(i.scheduled_at))} ${i.client_name}${isAdmin ? ` - ${who(i)}` : ""}`;
-                    return <button key={i.id} className="mev" style={{ "--c": `var(${statusColor(i.status)})` }} title={`${label} · ${i.status}`} onClick={() => open(i.id)}><span><b>{shortTime(new Date(i.scheduled_at))}</b> {i.client_name}{isAdmin ? ` - ${who(i)}` : ""}</span></button>;
-                  })}
-                  {jobs.length > MAX && <button className="mmore" onClick={() => { setDay(x); setMode("week"); }}>+{jobs.length - MAX} more</button>}
+                  {shown.map((i) => (
+                    <button key={i.id} className="mev" style={{ "--c": `var(${statusColor(i.status)})` }} title={evTitle(i)} onClick={() => open(i.id)}><span>{evLabel(i)}</span></button>
+                  ))}
+                  {jobs.length > shown.length && (
+                    <button className="mmore" aria-expanded={pop?.key === x.toDateString()} onClick={(e) => showMore(x, idx, e.currentTarget.parentElement)}>+{jobs.length - shown.length} more</button>
+                  )}
                 </div>
               );
             })}
           </div>
+          {pop && (
+            <div className="mpop" ref={popRef} style={pop.style} role="dialog" aria-label={fmtLong(pop.date)}>
+              <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap" }}>
+                <b>{pop.date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</b>
+                <button className="x" style={{ width: 28, height: 28, fontSize: 15 }} onClick={() => setPop(null)} aria-label="Close">✕</button>
+              </div>
+              {(byDay[pop.key] || []).map((i) => (
+                <button key={i.id} className="mev full" style={{ "--c": `var(${statusColor(i.status)})` }} title={evTitle(i)} onClick={() => { setPop(null); open(i.id); }}><span>{evLabel(i)}</span></button>
+              ))}
+            </div>
+          )}
           <div className="legend">
             {STATUSES.map((st) => <span key={st.k}><i style={{ background: `var(${st.c})` }} />{st.k}</span>)}
           </div>
-        </>
+        </div>
       )}
     </>
   );
